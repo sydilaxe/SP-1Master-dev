@@ -1,7 +1,10 @@
 /* Host test for the SP-1 Master engine: renders WAVs into build/test and checks the behaviour.
  *   master_test [OUTDIR]                          run the checks and write the WAVs
- *   master_test OUTDIR IN.wav CHAIN F1 F2 F3 F4   also run a 48 kHz stereo 16/24-bit WAV through
- *                                                 chain 1-4 at those fader positions (0..1) */
+ *   master_test OUTDIR IN.wav CHAIN F1 F2 F3 F4 [P1 P2 P3 P4] [OUT.wav]
+ *                                                 also run a 48 kHz stereo 16/24-bit WAV through
+ *                                                 chain 1-4 at those fader positions (0..1), page 2
+ *                                                 at P1..P4 (default 0.5), into OUTDIR/yours.wav
+ *                                                 (or OUT.wav); with OUTDIR "-", skip the checks */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -244,12 +247,15 @@ static const float FULL[4] = { 1, 1, 1, 1 };
 int main(int argc, char **argv)
 {
     const char *dir = argc > 1 ? argv[1] : "build/test";
+    const int only_file = argc > 7 && argv[1][0] == '-' && argv[1][1] == 0;
+    if (only_file) dir = ".";
     const int N = 8 * SR, W = SR;   /* 8 s; measure after the first second */
     float *il = malloc(4 * N), *ir = malloc(4 * N), *l = malloc(4 * N), *r = malloc(4 * N);
     float *l2 = malloc(4 * N), *r2 = malloc(4 * N), *nl = malloc(4 * N), *nr = malloc(4 * N);
     make_loop(il, ir, N);
     wav_write(dir, "loop_dry.wav", il, ir, N);
     noise(nl, nr, N, 0.05f, 3);   /* white noise at about -26 dBFS rms: for the EQ curves */
+    if (only_file) goto file_only;
     const int lat = ms_latency(&E);
     const float ceil = 0.89126f;  /* -1 dBFS */
     char what[128];
@@ -483,6 +489,7 @@ int main(int argc, char **argv)
         check(exact, "bypass: bit-exact input at the stated latency", exact);
     }
 
+file_only:
     if (argc > 7) {
         float *wl, *wr;
         int n = wav_read(argv[2], &wl, &wr);
@@ -490,9 +497,12 @@ int main(int argc, char **argv)
         int c = atoi(argv[3]) - 1;
         ms_init(&E, SR); ms_set_chain(&E, c); E.cur = c;
         for (int k = 0; k < 4; k++) ms_set_fader(&E, k, (float)atof(argv[4 + k]));
+        for (int k = 0; k < 4 && argc > 11; k++) ms_set_param2(&E, k, (float)atof(argv[8 + k]));
         for (int i = 0; i < n; i += 256) ms_process(&E, wl + i, wr + i, n - i < 256 ? n - i : 256);
-        wav_write(dir, "yours.wav", wl, wr, n);
-        printf("wrote %s/yours.wav\n", dir);
+        const char *name = argc > 12 ? argv[12] : "yours.wav";
+        if (only_file && name[0] == '/') { wav_write("", name, wl, wr, n); }
+        else wav_write(dir, name, wl, wr, n);
+        printf("wrote %s/%s\n", dir, name);
     }
 
     printf("%s: %d failed\n", fails ? "FAIL" : "PASS", fails);
