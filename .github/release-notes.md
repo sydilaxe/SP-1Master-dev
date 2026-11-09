@@ -22,7 +22,8 @@ into the limiter (limiter release). All down and page 2 centred: flat.
 
 **The crush page** (FWD): a bit crusher and filter from SP-1FX, before the chain. **1 AMOUNT** off to
 all crushed, **2 BITS** 16 to 1, **3 RATE** 48 to 2 kHz, **4 FILTER** low-pass (down), flat (middle),
-high-pass (up), as on SP-1FX. Off at power on; bypass skips it.
+high-pass (up), as on SP-1FX. Off at power on; bypass skips it. On the crush page
+the track lights show its settings (the filter's light is dark while flat, brighter toward either end).
 
 A look-ahead limiter at -1 dBFS stays on after the chain, also in bypass.
 

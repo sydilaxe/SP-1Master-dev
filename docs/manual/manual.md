@@ -177,7 +177,8 @@ a high-pass sweeps up from 20 Hz to 6 kHz, the same way round as on SP-1FX. The 
 comes after the crusher, so the low-pass can soften it.
 
 At power on Amount is down, Bits and Rate are in the middle, and Filter is in the middle (flat), so
-the crush page does nothing until you use it. Bypass skips it along with the chain.
+the crush page does nothing until you use it. Bypass skips it along with the chain. While you are
+on the crush page, the track lights show its four settings (see [Lights](#lights)).
 
 # Controls
 
@@ -227,7 +228,10 @@ Plug in headphones and the speaker turns off. Unplug them and the speaker comes 
 # Lights
 
 **Track lights** show the chain: the selected chain's light is on, and glows faintly in bypass.
-A fader waiting to pick up its parameter after a page change blinks its light.
+On the crush page they show the crush settings instead, one light per fader, brighter the
+further it is in: Amount, Bits and Rate by how far up they are, and Filter by how far it is from
+its flat middle, either way (dark while flat). The chain's light comes back when you leave the
+page. A fader waiting to pick up its parameter after a page change blinks its light.
 
 **Status lights** normally meter the gain reduction, the chain's compressor and the limiter
 together: one light from 0.5 dB, two from 2 dB, three from 4 dB and four from 8 dB. On page 2 the

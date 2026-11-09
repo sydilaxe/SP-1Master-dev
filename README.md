@@ -86,7 +86,8 @@ parameter centred and the crush page off, the output is the input, bit for bit, 
 **Pick-up:** after a page change, a parameter keeps its value until its fader reaches it (or
 sweeps past it), so nothing jumps. Its track light blinks until then.
 
-Lights: the track lights show the chain (faint in bypass). For 0.6 s after FWD or RWD the status
+Lights: the track lights show the chain (faint in bypass); on the crush page they show how far
+each crush control is in (the filter: how far from its flat middle, dark while flat). For 0.6 s after FWD or RWD the status
 lights show the page (left pair = page 1, right pair = page 2, all four = crush). Otherwise they
 show the gain reduction, compressor and limiter together (0.5, 2, 4 and 8 dB, the fourth blinking
 while on page 2, the first on the crush page), the volume for a second after you change it, and breathe slowly in bypass. Plug in

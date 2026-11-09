@@ -19,7 +19,8 @@
  *   TRACK 1 + 4, hold 3 s: reset into the bootloader for flashing
  *
  * Lights
- *   track lights      the selected chain; a fader waiting for pick-up blinks its light
+ *   track lights      the selected chain; on the crush page, how far each control is in (the
+ *                     filter: distance from its flat middle); a fader waiting for pick-up blinks
  *   status lights     gain reduction, compressor and limiter together (0.5, 2, 4, 8 dB), the
  *                     fourth blinking on page 2, the first on the crush page; volume for a second
  *                     after a change; the page for 0.6 s after a change (1+2 = page 1, 3+4 =
@@ -1011,10 +1012,16 @@ int main(void)
 
 		/* lights */
 		{
-			/* track lights: the chain; a fader waiting for pick-up blinks its light */
+			/* track lights: the chain; on the crush page, how far each control is in, as on
+			 * SP-1FX (the filter's light is dark across its flat middle and grows toward either
+			 * end). A fader waiting for pick-up blinks its light. */
 			const bool blink = tick % 30u < 10u;
+			float fl = g_crush[3] < 0.5f ? 0.5f - g_crush[3] : g_crush[3] - 0.5f;
+			fl = fl < 0.1f ? 0.0f : (fl - 0.1f) / 0.4f;
+			const float cr[4] = { g_crush[0], g_crush[1], g_crush[2], fl };
 			for (int i = 0; i < 4; i++) {
-				int v = i == g_chain ? (g_bypass ? 6 : LED_DIM) : 0;
+				int v = g_page == 2 ? (int)(cr[i] * cr[i] * LED_DIM)
+				                    : i == g_chain ? (g_bypass ? 6 : LED_DIM) : 0;
 				if (!caught[i]) v = blink ? (v ? 0 : LED_DIM / 3) : v;
 				led_set(g_trk_duty, i, v);
 			}
