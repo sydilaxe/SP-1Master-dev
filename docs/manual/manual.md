@@ -156,7 +156,7 @@ page 1.
 | 1 | **Amount** | off | all crushed |
 | 2 | **Bits** | 16 bits | 1 bit |
 | 3 | **Rate** | 48 kHz | 2 kHz |
-| 4 | **Filter** | high-pass | low-pass |
+| 4 | **Filter** | low-pass | high-pass |
 
 **Amount** mixes the crushed sound in with the clean one. The bottom few percent of its travel
 are off, and Bits and Rate do nothing then. At the top you hear only the crushed sound.
@@ -172,12 +172,13 @@ sample is held until the next one with no smoothing, so the lower rates add the 
 ring of early samplers.
 
 **Filter** is SP-1FX's filter, 24 dB per octave with resonance that builds toward the ends. The
-middle fifth of the fader is flat. Below it a high-pass sweeps up from 20 Hz to 6 kHz; above it a
-low-pass sweeps down from 20 kHz to 60 Hz. The filter works on its own, whatever Amount is, and
+middle fifth of the fader is flat. Below it a low-pass sweeps down from 20 kHz to 60 Hz; above it
+a high-pass sweeps up from 20 Hz to 6 kHz, the same way round as on SP-1FX. The filter works on its own, whatever Amount is, and
 comes after the crusher, so the low-pass can soften it.
 
 At power on Amount is down, Bits and Rate are in the middle, and Filter is in the middle (flat), so
-the crush page does nothing until you use it. Bypass skips it along with the chain.
+the crush page does nothing until you use it. Bypass skips it along with the chain. While you are
+on the crush page, the track lights show its four settings (see [Lights](#lights)).
 
 # Controls
 
@@ -227,7 +228,10 @@ Plug in headphones and the speaker turns off. Unplug them and the speaker comes 
 # Lights
 
 **Track lights** show the chain: the selected chain's light is on, and glows faintly in bypass.
-A fader waiting to pick up its parameter after a page change blinks its light.
+On the crush page they show the crush settings instead, one light per fader, brighter the
+further it is in: Amount, Bits and Rate by how far up they are, and Filter by how far it is from
+its flat middle, either way (dark while flat). The chain's light comes back when you leave the
+page. A fader waiting to pick up its parameter after a page change blinks its light.
 
 **Status lights** normally meter the gain reduction, the chain's compressor and the limiter
 together: one light from 0.5 dB, two from 2 dB, three from 4 dB and four from 8 dB. On page 2 the
@@ -313,7 +317,7 @@ If something is wrong on the hardware, this line is the thing to send with your 
 | Audio out | headphones or speaker, 48 kHz / 24-bit |
 | Processing | 32-bit floating point at 48 kHz |
 | Latency | 48 samples (1 ms); with every fader down, page 2 centred and the crush page off, the output is the input, bit for bit |
-| Crush page | 16 to 1 bits, 48 to 2 kHz, 24 dB/oct high-pass (20 Hz to 6 kHz) and low-pass (20 kHz to 60 Hz), before the chain |
+| Crush page | 16 to 1 bits, 48 to 2 kHz, 24 dB/oct low-pass (20 kHz to 60 Hz, down) and high-pass (20 Hz to 6 kHz, up), before the chain |
 | Limiter | -1 dBFS ceiling, 1 ms look-ahead, always on |
 | Chain switch | 15 ms fade out, 30 ms settling, 15 ms fade in |
 | Volume | 0 to -60 dB in 3 dB steps |

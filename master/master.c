@@ -567,12 +567,12 @@ STAGE static void crush_control(ms_crush *c, const float *cr, float sr)
     /* 48 kHz at the bottom of RATE down to 2 kHz at the top, evenly in octaves */
     c->rate_ratio = fx_exp2f(-4.585f * cr[MS_CR_RATE]);
 
-    /* the filter: down a high-pass up, up a low-pass down, the middle fifth flat */
+    /* the filter, as on SP-1FX: down a low-pass down, up a high-pass up, the middle fifth flat */
     float p = cr[MS_CR_FILTER], t;
     int mode;
     c->fpos = p;
-    if (p < 0.5f - FLT_DEAD)      { mode = 0; t = (0.5f - FLT_DEAD - p) / (0.5f - FLT_DEAD); }
-    else if (p > 0.5f + FLT_DEAD) { mode = 1; t = (p - 0.5f - FLT_DEAD) / (0.5f - FLT_DEAD); }
+    if (p < 0.5f - FLT_DEAD)      { mode = 1; t = (0.5f - FLT_DEAD - p) / (0.5f - FLT_DEAD); }
+    else if (p > 0.5f + FLT_DEAD) { mode = 0; t = (p - 0.5f - FLT_DEAD) / (0.5f - FLT_DEAD); }
     else                          { mode = c->mode; t = 0.0f; }
     if (c->fgate == 0.0f && mode != c->mode) {
         c->mode = mode;
