@@ -18,7 +18,8 @@
  * Crush page (FWD on the SP-1): a pre-master bit crusher and filter, before whichever chain runs.
  *
  *   crush 1  AMOUNT   how much of the crushed signal is heard: off (down) to all of it (up).
- *   crush 2  BITS     16 bits (down) to 4 bits (up), relative to the signal's level.
+ *   crush 2  BITS     16 bits (down) to 1 bit (up), relative to the signal's level: 2^bits levels,
+ *                     so 1 bit is a square at the music's level.
  *   crush 3  RATE     the sample rate: 48 kHz (down) to 2 kHz (up), sample-and-hold, no smoothing.
  *   crush 4  FILTER   high-pass (down), flat (the middle fifth), low-pass (up); 24 dB/oct, the
  *                     SP-1FX filter. It works on its own, whatever AMOUNT is.
@@ -106,7 +107,7 @@ typedef struct {
 /* the crush page: a bit and sample-rate reducer, then a high-pass / low-pass filter */
 typedef struct {
     float amt, wet, gate, gate_target;
-    float q_step, inv_q_step;         /* the quantizer's step for a signal normalised to its level */
+    float half, top, out_g;           /* quantizer: levels / 2, the top step's index, output scale */
     float rate_ratio;                 /* hold clock / sample rate: 1 down to 1/24 */
     float env, env_rel;               /* the level the quantizer follows (stereo-linked peak) */
     float hold_l, hold_r, phase;

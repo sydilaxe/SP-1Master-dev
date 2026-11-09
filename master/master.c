@@ -518,10 +518,16 @@ STAGE static void limiter_process(ms_limiter *m, float *l, float *r, int n)
 /* The crush page, ahead of the chain: SP-1FX's bit and sample-rate reducer, then its filter. */
 
 #define CRUSH_DEAD 0.03f    /* AMOUNT below this is off */
-#define CRUSH_FLOOR 1e-4f   /* -80 dBFS: below this the quantizer stops following the level */
+#define CRUSH_FLOOR 1e-4f   /* -80 dBFS: quieter than this the crusher outputs silence */
 #define FLT_DEAD 0.10f      /* FILTER: half-width of the flat zone around the centre */
 
-static inline float roundf_(float x) { return (float)(int)(x + (x >= 0.0f ? 0.5f : -0.5f)); }
+/* the step a value falls in: floor(v), held to -top-1 .. top */
+static inline float quant(float v, float top)
+{
+    float f = (float)(int)v;
+    if (f > v) f -= 1.0f;
+    return f > top ? top : f < -top - 1.0f ? -top - 1.0f : f;
+}
 
 static void crush_reset(ms_crush *c)
 {
@@ -532,8 +538,9 @@ static void crush_reset(ms_crush *c)
 static void crush_init(ms_crush *c, float sr)
 {
     __builtin_memset(c, 0, sizeof *c);
-    c->q_step = 2.0f / 65536.0f;
-    c->inv_q_step = 1.0f / c->q_step;
+    c->half = 32768.0f;
+    c->top = 32767.0f;
+    c->out_g = 1.0f / 32767.5f;
     c->rate_ratio = 1.0f;
     c->env_rel = sample_coef(0.012f, sr);   /* lets go fast: quiet sound after a hit keeps its steps */
     c->fpos = 0.5f;
@@ -547,11 +554,16 @@ STAGE static void crush_control(ms_crush *c, const float *cr, float sr)
     float a = cr[MS_CR_AMOUNT];
     c->wet = a < CRUSH_DEAD ? 0.0f : (a - CRUSH_DEAD) / (1.0f - CRUSH_DEAD);
     c->gate_target = c->wet > 0.0f ? 1.0f : 0.0f;
-    /* 16 bits at the bottom of BITS down to 4 at the top; the steps are relative to the
-     * signal's level, so the crunch is the same loud or quiet */
-    float levels = fx_exp2f(16.0f - 12.0f * cr[MS_CR_BITS]);
-    c->q_step = 2.0f / levels;
-    c->inv_q_step = levels * 0.5f;
+    /* 16 bits at the bottom of BITS down to 1 at the top: 2^bits levels across the signal's own
+     * level (see crush_process), so the crunch is the same loud or quiet. The levels sit
+     * between the steps (no zero level), so 1 bit is two levels, a square at the music's level;
+     * the outer levels reach the level itself. */
+    float h = fx_exp2f(15.0f - 15.0f * cr[MS_CR_BITS]);   /* levels / 2: 32768 .. 1 */
+    float hc = (float)(int)h;
+    if (hc < h) hc += 1.0f;                                /* ceil */
+    c->half = h;
+    c->top = hc - 1.0f;
+    c->out_g = 1.0f / (hc - 0.5f);
     /* 48 kHz at the bottom of RATE down to 2 kHz at the top, evenly in octaves */
     c->rate_ratio = fx_exp2f(-4.585f * cr[MS_CR_RATE]);
 
@@ -605,7 +617,7 @@ STAGE static void crush_process(ms_crush *c, float *l, float *r, int n, float sr
 
     /* the reducer: quantized sample-and-hold, mixed in by AMOUNT */
     if (c->gate != 0.0f || c->gate_target != 0.0f) {
-        const float wet = c->wet, q = c->q_step, inv_q = c->inv_q_step, rr = c->rate_ratio;
+        const float wet = c->wet, half = c->half, top = c->top, og = c->out_g, rr = c->rate_ratio;
         const float rel = c->env_rel;
         const int fading = gate_ramp(&c->gate, c->gate_target, gstep, mix, wet, n);
         float ph = c->phase, env = c->env, hl = c->hold_l, hr = c->hold_r;
@@ -617,10 +629,13 @@ STAGE static void crush_process(ms_crush *c, float *l, float *r, int n, float sr
             if (ph >= 1.0f) {
                 ph -= 1.0f;
                 /* x / env lies in -1..1: a quiet passage keeps all its steps */
-                float e = env > CRUSH_FLOOR ? env : CRUSH_FLOOR;
-                float k = inv_q / e, s = q * e;
-                hl = roundf_(l[i] * k) * s;
-                hr = roundf_(r[i] * k) * s;
+                if (env > CRUSH_FLOOR) {
+                    float k = half / env, s = og * env;
+                    hl = (quant(l[i] * k, top) + 0.5f) * s;
+                    hr = (quant(r[i] * k, top) + 0.5f) * s;
+                } else {
+                    hl = hr = 0.0f;
+                }
             }
             float m = fading ? mix[i] : wet;
             l[i] += m * (hl - l[i]);

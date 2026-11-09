@@ -154,15 +154,18 @@ page 1.
 | Fader | Control | Down | Up |
 |---|---|---|---|
 | 1 | **Amount** | off | all crushed |
-| 2 | **Bits** | 16 bits | 4 bits |
+| 2 | **Bits** | 16 bits | 1 bit |
 | 3 | **Rate** | 48 kHz | 2 kHz |
 | 4 | **Filter** | high-pass | low-pass |
 
 **Amount** mixes the crushed sound in with the clean one. The bottom few percent of its travel
 are off, and Bits and Rate do nothing then. At the top you hear only the crushed sound.
 
-**Bits** sets the bit depth, from 16 bits (barely there) to 4 bits (gritty). The steps follow the
-music's level, so quiet passages crunch as much as loud ones instead of dropping out.
+**Bits** sets the bit depth, from 16 bits (barely there) through 4 bits (gritty) to 1 bit at the
+top. N bits means exactly 2^N levels, so 1 bit is just two: a square wave that keeps the music's
+rhythm and level and little else, a fuzz-like buzz. The levels follow the music's level, so quiet
+passages crunch as much as loud ones instead of dropping out. Below -80 dBFS the crusher is
+silent.
 
 **Rate** sets the sample rate, from 48 kHz (no change) down to 2 kHz, evenly in octaves. Each
 sample is held until the next one with no smoothing, so the lower rates add the metallic, aliased
@@ -310,11 +313,11 @@ If something is wrong on the hardware, this line is the thing to send with your 
 | Audio out | headphones or speaker, 48 kHz / 24-bit |
 | Processing | 32-bit floating point at 48 kHz |
 | Latency | 48 samples (1 ms); with every fader down, page 2 centred and the crush page off, the output is the input, bit for bit |
-| Crush page | 16 to 4 bits, 48 to 2 kHz, 24 dB/oct high-pass (20 Hz to 6 kHz) and low-pass (20 kHz to 60 Hz), before the chain |
+| Crush page | 16 to 1 bits, 48 to 2 kHz, 24 dB/oct high-pass (20 Hz to 6 kHz) and low-pass (20 kHz to 60 Hz), before the chain |
 | Limiter | -1 dBFS ceiling, 1 ms look-ahead, always on |
 | Chain switch | 15 ms fade out, 30 ms settling, 15 ms fade in |
 | Volume | 0 to -60 dB in 3 dB steps |
-| CPU | about 50% of the 64 MHz Cortex-M4 worst case (estimated: the Clean chain with the crush page fully on) |
+| CPU | about 51% of the 64 MHz Cortex-M4 worst case (estimated: the Clean chain with the crush page fully on) |
 | RAM | about 39 KB of 256 KB (estimated) |
 
 # Credits

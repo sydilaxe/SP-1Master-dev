@@ -470,8 +470,9 @@ int main(int argc, char **argv)
         for (int i = lat; i < N; i++) if (l[i] != il[i - lat] || r[i] != ir[i - lat]) { exact = 0; break; }
         check(exact, "crush: amount down, bits and rate up: bit-exact", exact);
 
-        /* 4 bits: a -6 dBFS sine carries a lot of quantization error; 16 bits: hardly any */
-        g_crush = (const float[4]){ 1, 1, 0, 0.5f };
+        /* 4 bits (BITS at 0.8): a -6 dBFS sine carries a lot of quantization error; 16 bits:
+         * hardly any */
+        g_crush = (const float[4]){ 1, 0.8f, 0, 0.5f };
         run(sl, sr, l, r, N, MS_LONDON, REST, NULL, 256);
         double e4 = residual_db(l, sl, lat, W, N);
         check(e4 > -30 && e4 < -10, "crush: 4 bits, error against the input (dB)", e4);
@@ -480,10 +481,22 @@ int main(int argc, char **argv)
         double e16 = residual_db(l, sl, lat, W, N);
         check(e16 < -80, "crush: 16 bits, error against the input (dB)", e16);
         /* half AMOUNT: half the error, about -6 dB */
-        g_crush = (const float[4]){ 0.5f + CRUSH_HALF, 1, 0, 0.5f };
+        g_crush = (const float[4]){ 0.5f + CRUSH_HALF, 0.8f, 0, 0.5f };
         run(sl, sr, l, r, N, MS_LONDON, REST, NULL, 256);
         double eh = residual_db(l, sl, lat, W, N) - e4;
         check(eh > -7.5 && eh < -4.5, "crush: half amount, error against full (dB)", eh);
+
+        /* 1 bit: two levels, a square that keeps the sine's sign and its level */
+        g_crush = (const float[4]){ 1, 1, 0, 0.5f };
+        run(sl, sr, l, r, N, MS_LONDON, REST, NULL, 256);
+        int sq = 1; double lo1 = 1, hi1 = 0;
+        for (int i = W; i < N; i++) {
+            double x = sl[i - lat], y = l[i];
+            if (fabs(x) > 0.02 && (x > 0) != (y > 0)) sq = 0;
+            if (fabs(y) < lo1) lo1 = fabs(y);
+            if (fabs(y) > hi1) hi1 = fabs(y);
+        }
+        check(sq && lo1 > 0.4 && hi1 < 0.51, "crush: 1 bit, a square at the level (smallest |y|)", lo1);
 
         /* RATE up (2 kHz): a 440 Hz tone grows images above 1.5 kHz */
         g_crush = (const float[4]){ 1, 0, 1, 0.5f };

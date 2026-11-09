@@ -55,7 +55,7 @@ chain**, so the chain masters the crushed sound, and it stays set when you switc
 | Fader | Control | Down | Up |
 |---|---|---|---|
 | 1 | **Amount** | off | all crushed (a mix in between) |
-| 2 | **Bits** | 16 bits | 4 bits, the steps following the music's level |
+| 2 | **Bits** | 16 bits | 1 bit (2^N levels, so 1 bit is a square at the music's level) |
 | 3 | **Rate** | 48 kHz | 2 kHz, sample-and-hold |
 | 4 | **Filter** | high-pass, up to 6 kHz | low-pass, down to 60 Hz (the middle fifth flat; 24 dB/oct, resonant) |
 
@@ -118,7 +118,7 @@ boot. If something is wrong on the hardware, this line is the thing to send.
 
 - RAM: about 39 KB of 256 KB (the engine is under 4 KB of it).
 - CPU, worst case (the Clean chain, every fader full and moving, the crush page fully on and
-  moving, full-scale noise): about 50% of
+  moving, full-scale noise): about 51% of
   the 64 MHz Cortex-M4, estimated by `tools/bench_m4.py`, which runs the engine built for the M4
   in an emulator and counts cycles from the M4's instruction timings. Only one chain ever runs,
   so a switch never adds to it. The estimate leaves out USB interrupts, cache misses and pipeline

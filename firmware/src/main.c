@@ -10,7 +10,7 @@
  *   RWD (<<)          page 2 on/off. Page 2 puts each stage's second parameter (tilt, speed,
  *                     width, release) on its fader.
  *   FWD (>>)          the crush page on/off: a bit crusher and filter before the chain. Fader 1
- *                     amount, 2 bits (16 to 4), 3 sample rate (48 to 2 kHz), 4 filter (high-pass,
+ *                     amount, 2 bits (16 to 1), 3 sample rate (48 to 2 kHz), 4 filter (high-pass,
  *                     flat in the middle, low-pass). After any page change a parameter keeps its
  *                     value until its fader reaches it (pick-up), so nothing jumps.
  *   PLAY              bypass on/off: the dry signal (crossfaded; the limiter stays)

@@ -21,7 +21,7 @@ unplug and plug back in. The same plug-in hold always gets back to the bootloade
 into the limiter (limiter release). All down and page 2 centred: flat.
 
 **The crush page** (FWD): a bit crusher and filter from SP-1FX, before the chain. **1 AMOUNT** off to
-all crushed, **2 BITS** 16 to 4, **3 RATE** 48 to 2 kHz, **4 FILTER** high-pass (down), flat (middle),
+all crushed, **2 BITS** 16 to 1, **3 RATE** 48 to 2 kHz, **4 FILTER** high-pass (down), flat (middle),
 low-pass (up). Off at power on; bypass skips it.
 
 A look-ahead limiter at -1 dBFS stays on after the chain, also in bypass.
