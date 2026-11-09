@@ -1,10 +1,11 @@
 /* Host test for the SP-1 Master engine: renders WAVs into build/test and checks the behaviour.
  *   master_test [OUTDIR]                          run the checks and write the WAVs
- *   master_test OUTDIR IN.wav CHAIN F1 F2 F3 F4 [P1 P2 P3 P4] [OUT.wav]
+ *   master_test OUTDIR IN.wav CHAIN F1 F2 F3 F4 [P1 P2 P3 P4] [OUT.wav] [C1 C2 C3 C4]
  *                                                 also run a 48 kHz stereo 16/24-bit WAV through
  *                                                 chain 1-4 at those fader positions (0..1), page 2
  *                                                 at P1..P4 (default 0.5), into OUTDIR/yours.wav
- *                                                 (or OUT.wav); with OUTDIR "-", skip the checks */
+ *                                                 (or OUT.wav), the crush page at C1..C4 (default
+ *                                                 0, .5, .5, .5); with OUTDIR "-", skip the checks */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,7 @@
 #include "../master/master.h"
 
 #define SR 48000
+#define CRUSH_HALF 0.015f   /* AMOUNT's dead zone is 0.03: this lands the mix at a half */
 static ms_engine E;
 static int fails;
 
@@ -215,6 +217,8 @@ static double level_steps(int chain, float glue)
     return sum / k;
 }
 
+static const float *g_crush;   /* the crush page for run(); NULL = its defaults */
+
 static const char *chain_name[MS_CHAINS] = { "london", "punch", "clean", "lacquer" };
 
 /* run a whole signal through one chain at fixed settings; block 0 = random sizes 1..300 */
@@ -225,6 +229,7 @@ static void run(const float *il, const float *ir, float *ol, float *orr, int n, 
     ms_set_chain(&E, chain);
     E.cur = chain;   /* start in the chain, no crossfade from the default */
     for (int k = 0; k < 4; k++) { ms_set_fader(&E, k, f[k]); ms_set_param2(&E, k, p ? p[k] : 0.5f); }
+    if (g_crush) for (int k = 0; k < 4; k++) { ms_set_crush(&E, k, g_crush[k]); E.cr[k] = g_crush[k]; }
     memcpy(ol, il, sizeof(float) * n); memcpy(orr, ir, sizeof(float) * n);
     unsigned s = 7;
     for (int i = 0; i < n;) {
@@ -453,6 +458,84 @@ int main(int argc, char **argv)
         free(sl); free(sr);
     }
 
+    /* the crush page, ahead of the chain (London at rest, so only the crush and the limiter act) */
+    {
+        float *sl = malloc(4 * N), *sr = malloc(4 * N);
+        for (int i = 0; i < N; i++) sl[i] = sr[i] = 0.5f * (float)sin(2 * M_PI * 440.0 * i / SR);
+
+        /* AMOUNT down: BITS and RATE do nothing, bit for bit */
+        g_crush = (const float[4]){ 0, 1, 1, 0.5f };
+        run(il, ir, l, r, N, MS_LONDON, REST, NULL, 256);
+        int exact = 1;
+        for (int i = lat; i < N; i++) if (l[i] != il[i - lat] || r[i] != ir[i - lat]) { exact = 0; break; }
+        check(exact, "crush: amount down, bits and rate up: bit-exact", exact);
+
+        /* 4 bits: a -6 dBFS sine carries a lot of quantization error; 16 bits: hardly any */
+        g_crush = (const float[4]){ 1, 1, 0, 0.5f };
+        run(sl, sr, l, r, N, MS_LONDON, REST, NULL, 256);
+        double e4 = residual_db(l, sl, lat, W, N);
+        check(e4 > -30 && e4 < -10, "crush: 4 bits, error against the input (dB)", e4);
+        g_crush = (const float[4]){ 1, 0, 0, 0.5f };
+        run(sl, sr, l, r, N, MS_LONDON, REST, NULL, 256);
+        double e16 = residual_db(l, sl, lat, W, N);
+        check(e16 < -80, "crush: 16 bits, error against the input (dB)", e16);
+        /* half AMOUNT: half the error, about -6 dB */
+        g_crush = (const float[4]){ 0.5f + CRUSH_HALF, 1, 0, 0.5f };
+        run(sl, sr, l, r, N, MS_LONDON, REST, NULL, 256);
+        double eh = residual_db(l, sl, lat, W, N) - e4;
+        check(eh > -7.5 && eh < -4.5, "crush: half amount, error against full (dB)", eh);
+
+        /* RATE up (2 kHz): a 440 Hz tone grows images above 1.5 kHz */
+        g_crush = (const float[4]){ 1, 0, 1, 0.5f };
+        run(sl, sr, l, r, N, MS_LONDON, REST, NULL, 256);
+        double im = band_db(l, W, N, 1500, 20000) - rms_db(l, W, N);
+        check(im > -20, "crush: rate 2 kHz, images over 1.5 kHz (dB re all)", im);
+
+        /* FILTER down: high-pass at 6 kHz; up: low-pass at 60 Hz */
+        g_crush = (const float[4]){ 0, 0.5f, 0.5f, 0 };
+        run(nl, nr, l, r, N, MS_LONDON, REST, NULL, 256);
+        double lo = band_db(l, W, N, 80, 200) - band_db(nl, W, N, 80, 200);
+        double hi = band_db(l, W, N, 10000, 16000) - band_db(nl, W, N, 10000, 16000);
+        check(lo < -40 && fabs(hi) < 3, "crush: filter down, 80-200 Hz taken out (dB)", lo);
+        g_crush = (const float[4]){ 0, 0.5f, 0.5f, 1 };
+        run(nl, nr, l, r, N, MS_LONDON, REST, NULL, 256);
+        lo = band_db(l, W, N, 25, 45) - band_db(nl, W, N, 25, 45);
+        hi = band_db(l, W, N, 2000, 5000) - band_db(nl, W, N, 2000, 5000);
+        check(hi < -40 && lo > -3,   /* the lows stay; the resonance may lift them */
+               "crush: filter up, 2-5 kHz taken out (dB)", hi);
+        g_crush = (const float[4]){ 0, 0.5f, 0.5f, 0.56f };
+        run(il, ir, l, r, N, MS_LONDON, REST, NULL, 256);
+        exact = 1;
+        for (int i = lat; i < N; i++) if (l[i] != il[i - lat] || r[i] != ir[i - lat]) { exact = 0; break; }
+        check(exact, "crush: filter in its flat middle: bit-exact", exact);
+
+        /* every chain with the crush on: the block size makes no difference */
+        g_crush = (const float[4]){ 0.7f, 0.6f, 0.4f, 0.8f };
+        int same = 1;
+        for (int c = 0; c < MS_CHAINS; c++) {
+            run(il, ir, l, r, N, c, MID, NULL, 256);
+            run(il, ir, l2, r2, N, c, MID, NULL, 0);
+            same &= !memcmp(l, l2, 4 * N) && !memcmp(r, r2, 4 * N);
+            if (c == MS_PUNCH) wav_write(dir, "crush_punch.wav", l, r, N);
+        }
+        check(same, "crush: blocks of 256 and of 1..300: same output", same);
+        g_crush = NULL;
+
+        /* moving: AMOUNT and FILTER swept up and down on a tone, no clicks */
+        ms_init(&E, SR); E.cur = MS_LONDON;
+        memcpy(l, sl, 4 * N); memcpy(r, sr, 4 * N);
+        for (int i = 0; i < N; i += 64) {
+            double t = (double)i / N, tri = t < 0.5 ? 2 * t : 2 - 2 * t;
+            ms_set_crush(&E, MS_CR_AMOUNT, (float)tri);
+            ms_set_crush(&E, MS_CR_BITS, 0.3f);
+            ms_set_crush(&E, MS_CR_FILTER, (float)(0.5 + 0.45 * sin(2 * M_PI * t * 2)));
+            ms_process(&E, l + i, r + i, 64);
+        }
+        double cr = fmax(click_ratio(l, N), click_ratio(r, N));
+        check(cr < 15 && finite_all(l, r, N), "crush: amount and filter swept, no clicks", cr);
+        free(sl); free(sr);
+    }
+
     /* switching: chain to chain and to bypass, while the music plays: no clicks, the latency
      * never changes, and each switch is complete within 120 ms */
     {
@@ -478,9 +561,9 @@ int main(int argc, char **argv)
         check(cr < 15 && finite_all(l, r, N), "switch: chains and bypass, no clicks", cr);
         wav_write(dir, "switching.wav", l, r, N);
 
-        /* in bypass the output is the input at the latency, bit for bit */
+        /* in bypass (the crush page up too) the output is the input at the latency, bit for bit */
         ms_init(&E, SR);
-        for (int k = 0; k < 4; k++) ms_set_fader(&E, k, 1.0f);
+        for (int k = 0; k < 4; k++) { ms_set_fader(&E, k, 1.0f); ms_set_crush(&E, k, 1.0f); }
         ms_set_bypass(&E, 1);
         memcpy(l, il, 4 * N); memcpy(r, ir, 4 * N);
         ms_process(&E, l, r, N);
@@ -498,6 +581,7 @@ file_only:
         ms_init(&E, SR); ms_set_chain(&E, c); E.cur = c;
         for (int k = 0; k < 4; k++) ms_set_fader(&E, k, (float)atof(argv[4 + k]));
         for (int k = 0; k < 4 && argc > 11; k++) ms_set_param2(&E, k, (float)atof(argv[8 + k]));
+        for (int k = 0; k < 4 && argc > 16; k++) ms_set_crush(&E, k, (float)atof(argv[13 + k]));
         for (int i = 0; i < n; i += 256) ms_process(&E, wl + i, wr + i, n - i < 256 ? n - i : 256);
         const char *name = argc > 12 ? argv[12] : "yours.wav";
         if (only_file && name[0] == '/') { wav_write("", name, wl, wr, n); }

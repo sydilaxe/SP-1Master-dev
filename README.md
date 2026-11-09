@@ -47,21 +47,36 @@ The same four stages in every chain, in signal order; each has a second paramete
 | Clean | +2.5 dB at 80 Hz, -1.5 dB at 350 Hz, +4 dB at 12 kHz | three bands (180 Hz, 3.5 kHz), 2.5:1 each | a saturated air band above 7 kHz | |
 | Lacquer | +2.5 dB at 120 Hz, +1 dB at 3.5 kHz, -2.5 dB at 9 kHz | gentle 2:1 tube-style, slower after loud passages | mono bass, below 40 Hz up to 300 Hz | the band above 6 kHz held under -16 dBFS |
 
+## The crush page
+
+**FWD (>>)** puts a bit crusher and filter, from SP-1FX, on the faders. It sits **before the
+chain**, so the chain masters the crushed sound, and it stays set when you switch chains.
+
+| Fader | Control | Down | Up |
+|---|---|---|---|
+| 1 | **Amount** | off | all crushed (a mix in between) |
+| 2 | **Bits** | 16 bits | 4 bits, the steps following the music's level |
+| 3 | **Rate** | 48 kHz | 2 kHz, sample-and-hold |
+| 4 | **Filter** | high-pass, up to 6 kHz | low-pass, down to 60 Hz (the middle fifth flat; 24 dB/oct, resonant) |
+
+The filter works whatever Amount is, after the crusher. At power on Amount is down and Filter is
+centred, so the page does nothing until used. Bypass skips it.
+
 After the chain, a **look-ahead limiter** (-1 dBFS ceiling, 1 ms look-ahead) is always on, also
 in bypass.
 
 **Full bandwidth, 16- or 24-bit:** USB audio is 48 kHz, 16-bit or 24-bit (the host picks), out at
-24-bit; the engine runs at 48 kHz in 32-bit floating point. With every fader down and every page 2
-parameter centred, the output is the input, bit for bit, 48 samples (1 ms) later.
+24-bit; the engine runs at 48 kHz in 32-bit floating point. With every fader down, every page 2
+parameter centred and the crush page off, the output is the input, bit for bit, 48 samples (1 ms) later.
 
 ## Controls
 
 | | |
 |---|---|
 | TRACK 1-4 | the chain (also leaves bypass) |
-| Faders 1-4 | the stages (page 1) or their second parameters (page 2) |
-| FWD (>>) | page 2 |
-| RWD (<<) | page 1 |
+| Faders 1-4 | the stages (page 1), their second parameters (page 2) or the crusher (crush page) |
+| FWD (>>) | the crush page; again for page 1 |
+| RWD (<<) | page 2; again for page 1 |
 | PLAY | bypass: the dry signal, crossfaded over 50 ms (the limiter stays; not level-matched) |
 | VOL + / VOL - | output volume, 3 dB steps |
 | FUNCTION, hold 1.5 s | power on |
@@ -72,9 +87,9 @@ parameter centred, the output is the input, bit for bit, 48 samples (1 ms) later
 sweeps past it), so nothing jumps. Its track light blinks until then.
 
 Lights: the track lights show the chain (faint in bypass). For 0.6 s after FWD or RWD the status
-lights show the page (left pair = page 1, right pair = page 2). Otherwise they show the gain
-reduction, compressor and limiter together (0.5, 2, 4 and 8 dB, the fourth blinking while on
-page 2), the volume for a second after you change it, and breathe slowly in bypass. Plug in
+lights show the page (left pair = page 1, right pair = page 2, all four = crush). Otherwise they
+show the gain reduction, compressor and limiter together (0.5, 2, 4 and 8 dB, the fourth blinking
+while on page 2, the first on the crush page), the volume for a second after you change it, and breathe slowly in bypass. Plug in
 headphones and the speaker turns off.
 
 ## Flashing and getting back
@@ -94,7 +109,7 @@ at all, step 2's plug-in hold still reaches the bootloader.
 ## Status line
 
 Open the SP-1's USB serial port (any baud rate) for a line a second: `chain=` the chain (1-4),
-`f=` fader readings, `byp=` bypass, `usb=` streaming, `fill=` the input buffer, `under= over=`
+`page=` the page (3 = crush), `f=` fader readings, `cr=` the crush page in percent, `byp=` bypass, `usb=` streaming, `fill=` the input buffer, `under= over=`
 buffer under/overruns, `blk=last/max us` the time one 2.67 ms audio block takes (the CPU check: it
 must stay well under 2667), `hp=` headphones, `gr=` gain reduction, `flt=` a crash from the last
 boot. If something is wrong on the hardware, this line is the thing to send.
@@ -102,7 +117,8 @@ boot. If something is wrong on the hardware, this line is the thing to send.
 ## CPU and memory
 
 - RAM: about 39 KB of 256 KB (the engine is under 4 KB of it).
-- CPU, worst case (the Clean chain, every fader full and moving, full-scale noise): about 41% of
+- CPU, worst case (the Clean chain, every fader full and moving, the crush page fully on and
+  moving, full-scale noise): about 50% of
   the 64 MHz Cortex-M4, estimated by `tools/bench_m4.py`, which runs the engine built for the M4
   in an emulator and counts cycles from the M4's instruction timings. Only one chain ever runs,
   so a switch never adds to it. The estimate leaves out USB interrupts, cache misses and pipeline

@@ -99,6 +99,10 @@ jobs:
           done
           grep -q "^switch: chains and bypass, no clicks .* ok" $r
           grep -q "^bypass: bit-exact input at the stated latency .* ok" $r
+          grep -q "^crush: amount down, bits and rate up: bit-exact .* ok" $r
+          grep -q "^crush: filter in its flat middle: bit-exact .* ok" $r
+          grep -q "^crush: blocks of 256 and of 1..300: same output .* ok" $r
+          grep -q "^crush: amount and filter swept, no clicks .* ok" $r
       - uses: actions/upload-artifact@v4
         if: always()
         with:

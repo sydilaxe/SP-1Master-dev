@@ -36,6 +36,7 @@ built-in speaker.
 4. Plug in headphones, or listen on the speaker.
 5. Press **TRACK 1-4** to pick a chain, and push the faders up to bring in its stages. All four
    faders down means no processing at all.
+6. For lo-fi, press **FWD (>>)** for the crush page: a bit crusher and filter ahead of the chain.
 
 # The chains
 
@@ -58,7 +59,8 @@ muted (so its compressor has already caught the music when you hear it), then fa
 
 The four faders set the same four stages in every chain, in the order the sound passes through
 them. What each stage does depends on the chain. Each fader also has a **second parameter** on
-page 2 (see [Pages](#pages-and-pick-up)).
+page 2 (see [Pages](#pages-and-pick-up)). A third page, the [crush page](#the-crush-page), puts
+a bit crusher and filter in front of the chain.
 
 | Fader | Stage | Down | Up | Page 2 |
 |---|---|---|---|---|
@@ -67,8 +69,8 @@ page 2 (see [Pages](#pages-and-pick-up)).
 | 3 | **Colour** | off | more of the chain's character | stereo width: mono to wide |
 | 4 | **Loudness** | 0 dB | up to +12 dB into the limiter | limiter release: slow to fast |
 
-With all four faders down and every page 2 parameter in the middle, the chain is flat: the output
-is the input, bit for bit, 1 ms later.
+With all four faders down, every page 2 parameter in the middle and the crush page's Amount down
+and Filter in the middle, the chain is flat: the output is the input, bit for bit, 1 ms later.
 
 ## 1 · Tone
 
@@ -142,14 +144,46 @@ After the chain, a look-ahead limiter with its ceiling at -1 dBFS is always on, 
 It sees 1 ms ahead, so the output never goes over the ceiling. On its own it only acts on overs;
 the Loudness fader drives the music into it.
 
+# The crush page
+
+Press **FWD (>>)** and the faders run a bit crusher and filter that sit **before the chain**, so
+the chain's EQ, compressor and limiter master the crushed sound. It works the same in front of
+all four chains, and it keeps its settings when you switch chains. Press FWD again to go back to
+page 1.
+
+| Fader | Control | Down | Up |
+|---|---|---|---|
+| 1 | **Amount** | off | all crushed |
+| 2 | **Bits** | 16 bits | 4 bits |
+| 3 | **Rate** | 48 kHz | 2 kHz |
+| 4 | **Filter** | high-pass | low-pass |
+
+**Amount** mixes the crushed sound in with the clean one. The bottom few percent of its travel
+are off, and Bits and Rate do nothing then. At the top you hear only the crushed sound.
+
+**Bits** sets the bit depth, from 16 bits (barely there) to 4 bits (gritty). The steps follow the
+music's level, so quiet passages crunch as much as loud ones instead of dropping out.
+
+**Rate** sets the sample rate, from 48 kHz (no change) down to 2 kHz, evenly in octaves. Each
+sample is held until the next one with no smoothing, so the lower rates add the metallic, aliased
+ring of early samplers.
+
+**Filter** is SP-1FX's filter, 24 dB per octave with resonance that builds toward the ends. The
+middle fifth of the fader is flat. Below it a high-pass sweeps up from 20 Hz to 6 kHz; above it a
+low-pass sweeps down from 20 kHz to 60 Hz. The filter works on its own, whatever Amount is, and
+comes after the crusher, so the low-pass can soften it.
+
+At power on Amount is down, Bits and Rate are in the middle, and Filter is in the middle (flat), so
+the crush page does nothing until you use it. Bypass skips it along with the chain.
+
 # Controls
 
 | Control | Action |
 |---|---|
 | TRACK 1-4 | pick the chain: London, Punch, Clean, Lacquer (also leaves bypass) |
-| Faders 1-4 | the stages (page 1) or their second parameters (page 2) |
-| FWD (>>) | go to page 2 |
-| RWD (<<) | go to page 1 |
+| Faders 1-4 | the stages (page 1), their second parameters (page 2) or the crusher (crush page) |
+| FWD (>>) | the crush page; press again for page 1 |
+| RWD (<<) | page 2; press again for page 1 |
 | PLAY | bypass: the dry signal, and back |
 | VOL + / VOL - | output volume, 3 dB steps |
 | FUNCTION, hold 1.5 s | power on |
@@ -158,10 +192,12 @@ the Loudness fader drives the music into it.
 
 ## Pages and pick-up
 
-The faders have two pages. **Page 1** sets the four stages. **Page 2** sets each stage's second
-parameter. Press **FWD (>>)** for page 2 and **RWD (<<)** to go back to page 1. For 0.6 seconds
-after you press either, the status lights show the page: the left pair for page 1, the right pair
-for page 2.
+The faders have three pages. **Page 1** sets the four stages. **Page 2** sets each stage's second
+parameter. The **crush page** sets the bit crusher and filter. Press **RWD (<<)** for page 2 and
+**FWD (>>)** for the crush page; press the same button again to go back to page 1. From page 2,
+FWD goes straight to the crush page, and from the crush page RWD goes straight to page 2. For 0.6
+seconds after you press either, the status lights show the page: the left pair for page 1, the
+right pair for page 2, all four for the crush page.
 
 When you change page, the faders are usually not where that page's values are. So nothing
 jumps, a parameter keeps its value until you move its fader to that value (or sweep past it).
@@ -192,9 +228,11 @@ A fader waiting to pick up its parameter after a page change blinks its light.
 
 **Status lights** normally meter the gain reduction, the chain's compressor and the limiter
 together: one light from 0.5 dB, two from 2 dB, three from 4 dB and four from 8 dB. On page 2 the
-fourth light blinks. They switch to other information for a moment:
+fourth light blinks; on the crush page the first light blinks. They switch to other information
+for a moment:
 
-- for 0.6 s after FWD or RWD: the page (left pair = page 1, right pair = page 2);
+- for 0.6 s after FWD or RWD: the page (left pair = page 1, right pair = page 2, all four = crush
+  page);
 - for 1 s after VOL + or VOL -: the volume;
 - in bypass: all four breathe slowly.
 
@@ -206,7 +244,8 @@ fourth light blinks. They switch to other information for a moment:
   with the top lit light blinking while it charges.
 - **Settings:** the chain, page and volume are not stored. Each time you power on, SP-1 Master
   starts with the London chain, on page 1, with the volume at -6 dB, every page 2 parameter in
-  the middle, and the stages set by where the faders are.
+  the middle, the crush page off (as described in [The crush page](#the-crush-page)), and the
+  stages set by where the faders are.
 
 If the firmware ever hangs, a watchdog restarts it within 4 seconds and it comes straight back
 up.
@@ -236,6 +275,7 @@ bootloader.
 | SP-1 Master doesn't appear as a sound card | Use a USB-C cable that carries data, not a charge-only one. Power the SP-1 on with FUNCTION. |
 | The faders do nothing | PLAY bypass may be on (the status lights breathe): press PLAY or a TRACK button. |
 | A fader doesn't respond after a page change | It is waiting to pick up: move it to where its value is, or sweep it past. |
+| The sound is thin, dull or gritty with the chain's faders down | The crush page may be on: press FWD and bring Amount down and Filter to the middle. |
 | The sound pumps or distorts | Bring the Loudness fader down, or its page 2 release toward slow. |
 | Crackles or dropouts | Send the status line (below). |
 | It won't start | Hold TRACK 1 + TRACK 4 while plugging in USB and reflash. |
@@ -248,7 +288,9 @@ prints one line a second:
 | Field | Meaning |
 |---|---|
 | `chain=` | the selected chain, 1 to 4 |
+| `page=` | the fader page: 1, 2, or 3 for the crush page |
 | `f=` | fader readings |
+| `cr=` | the crush page: amount, bits, rate, filter, in percent |
 | `byp=` | bypass on |
 | `usb=` | whether audio is streaming |
 | `fill=` | how full the input buffer is |
@@ -267,11 +309,12 @@ If something is wrong on the hardware, this line is the thing to send with your 
 | Audio in | USB-C, class-compliant USB audio (UAC2), 48 kHz stereo, 16- or 24-bit (the host picks) |
 | Audio out | headphones or speaker, 48 kHz / 24-bit |
 | Processing | 32-bit floating point at 48 kHz |
-| Latency | 48 samples (1 ms); with every fader down and page 2 centred the output is the input, bit for bit |
+| Latency | 48 samples (1 ms); with every fader down, page 2 centred and the crush page off, the output is the input, bit for bit |
+| Crush page | 16 to 4 bits, 48 to 2 kHz, 24 dB/oct high-pass (20 Hz to 6 kHz) and low-pass (20 kHz to 60 Hz), before the chain |
 | Limiter | -1 dBFS ceiling, 1 ms look-ahead, always on |
 | Chain switch | 15 ms fade out, 30 ms settling, 15 ms fade in |
 | Volume | 0 to -60 dB in 3 dB steps |
-| CPU | about 41% of the 64 MHz Cortex-M4 worst case (estimated, the Clean chain) |
+| CPU | about 50% of the 64 MHz Cortex-M4 worst case (estimated: the Clean chain with the crush page fully on) |
 | RAM | about 39 KB of 256 KB (estimated) |
 
 # Credits
