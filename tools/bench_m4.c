@@ -1,7 +1,8 @@
 /* Cortex-M4 cycle estimate for the mastering engine: built for the M4F like the firmware, run in
  * an emulator by tools/bench_m4.py. Worst case: the heaviest chain (Clean; only one chain ever
  * runs), every fader full and moving (so every setting is recomputed each chunk), full-scale
- * noise in. BENCH_A picks another chain. */
+ * noise in, and the crush page on and moving too (the filter near the top, recomputed each chunk).
+ * BENCH_A picks another chain. */
 #include "master.h"
 
 #ifndef BENCH_A
@@ -40,6 +41,8 @@ void bench_block(void)   /* one firmware block: 128 frames */
     static int t;
     float w = (t++ & 1) ? 0.0f : 0.02f;    /* the faders move a little every block */
     for (int k = 0; k < 4; k++) { ms_set_fader(&E, k, 1.0f - w); ms_set_param2(&E, k, 0.2f + w); }
+    for (int k = 0; k < 3; k++) ms_set_crush(&E, k, 0.9f - w);
+    ms_set_crush(&E, MS_CR_FILTER, 0.95f - w);
     fill();
     ms_process(&E, L, R, 128);
 }

@@ -514,6 +514,167 @@ STAGE static void limiter_process(ms_limiter *m, float *l, float *r, int n)
     m->pos_dl = p; m->sn = sn;
 }
 
+/* ================================================================= crush ==== */
+/* The crush page, ahead of the chain: SP-1FX's bit and sample-rate reducer, then its filter. */
+
+#define CRUSH_DEAD 0.03f    /* AMOUNT below this is off */
+#define CRUSH_FLOOR 1e-4f   /* -80 dBFS: quieter than this the crusher outputs silence */
+#define FLT_DEAD 0.10f      /* FILTER: half-width of the flat zone around the centre */
+
+/* the step a value falls in: floor(v), held to -top-1 .. top */
+static inline float quant(float v, float top)
+{
+    float f = (float)(int)v;
+    if (f > v) f -= 1.0f;
+    return f > top ? top : f < -top - 1.0f ? -top - 1.0f : f;
+}
+
+static void crush_reset(ms_crush *c)
+{
+    c->env = c->hold_l = c->hold_r = c->phase = 0.0f;
+    for (int ch = 0; ch < 2; ch++) c->st[ch][0] = c->st[ch][1] = (fx_svf_state){0};
+}
+
+static void crush_init(ms_crush *c, float sr)
+{
+    __builtin_memset(c, 0, sizeof *c);
+    c->half = 32768.0f;
+    c->top = 32767.0f;
+    c->out_g = 1.0f / 32767.5f;
+    c->rate_ratio = 1.0f;
+    c->env_rel = sample_coef(0.012f, sr);   /* lets go fast: quiet sound after a hit keeps its steps */
+    c->fpos = 0.5f;
+    c->set_t = -1.0f;
+}
+
+/* once a chunk, from the smoothed crush page */
+STAGE static void crush_control(ms_crush *c, const float *cr, float sr)
+{
+    /* the reducer */
+    float a = cr[MS_CR_AMOUNT];
+    c->wet = a < CRUSH_DEAD ? 0.0f : (a - CRUSH_DEAD) / (1.0f - CRUSH_DEAD);
+    c->gate_target = c->wet > 0.0f ? 1.0f : 0.0f;
+    /* 16 bits at the bottom of BITS down to 1 at the top: 2^bits levels across the signal's own
+     * level (see crush_process), so the crunch is the same loud or quiet. The levels sit
+     * between the steps (no zero level), so 1 bit is two levels, a square at the music's level;
+     * the outer levels reach the level itself. */
+    float h = fx_exp2f(15.0f - 15.0f * cr[MS_CR_BITS]);   /* levels / 2: 32768 .. 1 */
+    float hc = (float)(int)h;
+    if (hc < h) hc += 1.0f;                                /* ceil */
+    c->half = h;
+    c->top = hc - 1.0f;
+    c->out_g = 1.0f / (hc - 0.5f);
+    /* 48 kHz at the bottom of RATE down to 2 kHz at the top, evenly in octaves */
+    c->rate_ratio = fx_exp2f(-4.585f * cr[MS_CR_RATE]);
+
+    /* the filter: down a high-pass up, up a low-pass down, the middle fifth flat */
+    float p = cr[MS_CR_FILTER], t;
+    int mode;
+    c->fpos = p;
+    if (p < 0.5f - FLT_DEAD)      { mode = 0; t = (0.5f - FLT_DEAD - p) / (0.5f - FLT_DEAD); }
+    else if (p > 0.5f + FLT_DEAD) { mode = 1; t = (p - 0.5f - FLT_DEAD) / (0.5f - FLT_DEAD); }
+    else                          { mode = c->mode; t = 0.0f; }
+    if (c->fgate == 0.0f && mode != c->mode) {
+        c->mode = mode;
+        c->st[0][0] = c->st[0][1] = c->st[1][0] = c->st[1][1] = (fx_svf_state){0};
+    }
+    c->fgate_target = t > 0.0f && mode == c->mode ? 1.0f : 0.0f;
+    if (c->fgate == 0.0f && c->fgate_target == 0.0f) return;
+    t = fx_clampf(t, 0.0f, 1.0f);
+    if (t == c->set_t && c->mode == c->set_mode) return;   /* parked */
+    c->set_t = t;
+    c->set_mode = c->mode;
+    /* 24 dB/oct, resonance building toward the ends (SP-1FX's page 2 at its middle) */
+    float q2 = 1.3066f * (1.0f + 3.6f * t);
+    if (c->mode == 0) {           /* high-pass: 20 Hz up to 6 kHz */
+        float hz = 20.0f * fx_exp2f(8.23f * t);
+        fx_svf_highpass(&c->s1, hz, 0.5412f, sr);
+        fx_svf_highpass(&c->s2, hz, q2, sr);
+    } else {                      /* low-pass: 20 kHz down to 60 Hz */
+        float hz = 20000.0f * fx_exp2f(-8.38f * t);
+        fx_svf_lowpass(&c->s1, hz, 0.5412f, sr);
+        fx_svf_lowpass(&c->s2, hz, q2, sr);
+    }
+}
+
+/* a 15 ms on/off fade, per frame, into buf; returns whether anything is fading */
+static int gate_ramp(float *g, float gt, float step, float *buf, float scale, int n)
+{
+    float v = *g;
+    if (v == gt && (v == 0.0f || v == 1.0f)) return 0;
+    for (int i = 0; i < n; i++) {
+        if (v != gt) { v += v < gt ? step : -step; v = fx_clampf(v, 0.0f, 1.0f); }
+        buf[i] = v * scale;
+    }
+    *g = v;
+    return 1;
+}
+
+STAGE static void crush_process(ms_crush *c, float *l, float *r, int n, float sr)
+{
+    const float gstep = 1.0f / (0.015f * sr);
+    float mix[MS_CHUNK];
+
+    /* the reducer: quantized sample-and-hold, mixed in by AMOUNT */
+    if (c->gate != 0.0f || c->gate_target != 0.0f) {
+        const float wet = c->wet, half = c->half, top = c->top, og = c->out_g, rr = c->rate_ratio;
+        const float rel = c->env_rel;
+        const int fading = gate_ramp(&c->gate, c->gate_target, gstep, mix, wet, n);
+        float ph = c->phase, env = c->env, hl = c->hold_l, hr = c->hold_r;
+        for (int i = 0; i < n; i++) {
+            uint32_t ul = fx_abs_bits(l[i]), ur = fx_abs_bits(r[i]);
+            float pk = fx_from_bits(ul > ur ? ul : ur);
+            env = pk > env ? pk : env + rel * (pk - env);   /* instant attack: |x| <= env always */
+            ph += rr;
+            if (ph >= 1.0f) {
+                ph -= 1.0f;
+                /* x / env lies in -1..1: a quiet passage keeps all its steps */
+                if (env > CRUSH_FLOOR) {
+                    float k = half / env, s = og * env;
+                    hl = (quant(l[i] * k, top) + 0.5f) * s;
+                    hr = (quant(r[i] * k, top) + 0.5f) * s;
+                } else {
+                    hl = hr = 0.0f;
+                }
+            }
+            float m = fading ? mix[i] : wet;
+            l[i] += m * (hl - l[i]);
+            r[i] += m * (hr - r[i]);
+        }
+        c->phase = ph; c->env = env; c->hold_l = hl; c->hold_r = hr;
+        if (c->gate == 0.0f && c->gate_target == 0.0f) c->env = c->hold_l = c->hold_r = c->phase = 0.0f;
+    }
+
+    /* the filter */
+    if (c->fgate != 0.0f || c->fgate_target != 0.0f) {
+        float dry[2][MS_CHUNK];
+        const int fading = gate_ramp(&c->fgate, c->fgate_target, gstep, mix, 1.0f, n);
+        if (fading) for (int i = 0; i < n; i++) { dry[0][i] = l[i]; dry[1][i] = r[i]; }
+        const fx_svf A = c->s1, B = c->s2;
+        for (int ch = 0; ch < 2; ch++) {
+            float *x = ch ? r : l;
+            float a1 = c->st[ch][0].ic1, a2 = c->st[ch][0].ic2, b1 = c->st[ch][1].ic1, b2 = c->st[ch][1].ic2;
+            if (c->mode) {
+                for (int i = 0; i < n; i++) {
+                    float y = fx_svf_lp(A.a1, A.a2, A.a3, &a1, &a2, x[i]);
+                    x[i] = fx_svf_lp(B.a1, B.a2, B.a3, &b1, &b2, y);
+                }
+            } else {
+                const float ka = -A.m1, kb = -B.m1;
+                for (int i = 0; i < n; i++) {
+                    float y = fx_svf_hp(A.a1, A.a2, A.a3, ka, &a1, &a2, x[i]);
+                    x[i] = fx_svf_hp(B.a1, B.a2, B.a3, kb, &b1, &b2, y);
+                }
+            }
+            c->st[ch][0].ic1 = a1; c->st[ch][0].ic2 = a2; c->st[ch][1].ic1 = b1; c->st[ch][1].ic2 = b2;
+            if (fading) {
+                const float *d = dry[ch];
+                for (int i = 0; i < n; i++) x[i] = d[i] + mix[i] * (x[i] - d[i]);
+            }
+        }
+    }
+}
+
 /* ================================================================ engine ==== */
 
 void ms_init(ms_engine *e, float sr)
@@ -521,6 +682,10 @@ void ms_init(ms_engine *e, float sr)
     __builtin_memset(e, 0, sizeof *e);
     e->sr = sr;
     for (int k = 0; k < MS_SLOTS; k++) { e->param2[k] = e->p[k] = 0.5f; }
+    e->crush[MS_CR_BITS] = e->cr[MS_CR_BITS] = 0.5f;
+    e->crush[MS_CR_RATE] = e->cr[MS_CR_RATE] = 0.5f;
+    e->crush[MS_CR_FILTER] = e->cr[MS_CR_FILTER] = 0.5f;
+    crush_init(&e->crs, sr);
     for (int c = 0; c < MS_CHAINS; c++) chain_init(&e->ch[c], c, sr);
     limiter_init(&e->lim, sr);
     e->chain = MS_LONDON;
@@ -538,6 +703,11 @@ void ms_set_fader(ms_engine *e, int slot, float pos)
 void ms_set_param2(ms_engine *e, int slot, float pos)
 {
     if (slot >= 0 && slot < MS_SLOTS) e->param2[slot] = fx_clampf(pos, 0.0f, 1.0f);
+}
+
+void ms_set_crush(ms_engine *e, int slot, float pos)
+{
+    if (slot >= 0 && slot < MS_SLOTS) e->crush[slot] = fx_clampf(pos, 0.0f, 1.0f);
 }
 
 void ms_set_chain(ms_engine *e, int chain)
@@ -575,7 +745,9 @@ void ms_process(ms_engine *e, float *l, float *r, int n)
             for (int s = 0; s < MS_SLOTS; s++) {
                 e->f[s] = glide(e->f[s], e->fader[s], k);
                 e->p[s] = glide(e->p[s], e->param2[s], k);
+                e->cr[s] = glide(e->cr[s], e->crush[s], k);
             }
+            crush_control(&e->crs, e->cr, sr);
             /* the limiter's release: 400 ms (down) to 25 ms (up), 100 ms in the middle */
             e->lim.s_rel = step_coef(0.4f * fx_exp2f(-4.0f * e->p[MS_LOUD]), sr, LIM_SEG);
 
@@ -585,7 +757,7 @@ void ms_process(ms_engine *e, float *l, float *r, int n)
                     e->nxt = want;
                     e->xf = 0.0f;
                     e->warm = want == MS_DRY ? 0 : (int)(WARM_S * sr / MS_CHUNK);
-                    if (want != MS_DRY) chain_reset(&e->ch[want]);
+                    if (want != MS_DRY) { chain_reset(&e->ch[want]); crush_reset(&e->crs); }
                 } else {
                     e->dip = DIP_OUT;
                     e->dip_to = want;
@@ -602,8 +774,13 @@ void ms_process(ms_engine *e, float *l, float *r, int n)
         if (e->nxt >= 0) {
             /* to or from bypass: at most one chain runs, the other side is the dry input */
             for (int i = 0; i < m; i++) { al[i] = l[i]; ar[i] = r[i]; }
-            if (e->nxt != MS_DRY) chain_process(&e->ch[e->nxt], al, ar, m, ends);
-            else if (e->cur != MS_DRY) chain_process(&e->ch[e->cur], l, r, m, ends);
+            if (e->nxt != MS_DRY) {
+                crush_process(&e->crs, al, ar, m, sr);
+                chain_process(&e->ch[e->nxt], al, ar, m, ends);
+            } else if (e->cur != MS_DRY) {
+                crush_process(&e->crs, l, r, m, sr);
+                chain_process(&e->ch[e->cur], l, r, m, ends);
+            }
             if (e->warm > 0) {
                 if (ends) e->warm--;
             } else {
@@ -618,6 +795,7 @@ void ms_process(ms_engine *e, float *l, float *r, int n)
                 if (x >= 1.0f) { e->cur = e->nxt; e->nxt = -1; }
             }
         } else if (e->cur != MS_DRY) {
+            crush_process(&e->crs, l, r, m, sr);
             chain_process(&e->ch[e->cur], l, r, m, ends);
             if (e->dip != DIP_NONE) {
                 /* chain to chain: out, swap, settle muted, in */

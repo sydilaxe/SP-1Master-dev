@@ -7,8 +7,11 @@
  * Controls
  *   TRACK 1-4         the chain: 1 London, 2 Punch, 3 Clean, 4 Lacquer (one at a time)
  *   faders 1-4        the chain's four stages: Tone, Glue, Colour, Loudness (see master/master.h)
- *   FWD (>>) / RWD (<<)  page 2 / page 1. Page 2 puts each stage's second parameter (tilt, speed,
- *                     width, release) on its fader. After a page change a parameter keeps its
+ *   RWD (<<)          page 2 on/off. Page 2 puts each stage's second parameter (tilt, speed,
+ *                     width, release) on its fader.
+ *   FWD (>>)          the crush page on/off: a bit crusher and filter before the chain. Fader 1
+ *                     amount, 2 bits (16 to 1), 3 sample rate (48 to 2 kHz), 4 filter (high-pass,
+ *                     flat in the middle, low-pass). After any page change a parameter keeps its
  *                     value until its fader reaches it (pick-up), so nothing jumps.
  *   PLAY              bypass on/off: the dry signal (crossfaded; the limiter stays)
  *   VOL + / VOL -     output volume, 3 dB steps
@@ -18,9 +21,9 @@
  * Lights
  *   track lights      the selected chain; a fader waiting for pick-up blinks its light
  *   status lights     gain reduction, compressor and limiter together (0.5, 2, 4, 8 dB), the
- *                     fourth blinking on page 2; volume for a second after a change; the page for
- *                     0.6 s after a change (1+2 = page 1, 3+4 = page 2); all four slowly
- *                     breathing = bypass
+ *                     fourth blinking on page 2, the first on the crush page; volume for a second
+ *                     after a change; the page for 0.6 s after a change (1+2 = page 1, 3+4 =
+ *                     page 2, all four = crush); all four slowly breathing = bypass
  *
  * The platform code (power, codecs, I2S clocking, the USB audio class and its feedback, the
  * bootloader rules) follows sydilaxe/SP-1FX and chattock/sp1-tape-looper (MIT, see
@@ -557,7 +560,8 @@ static int g_i2s_rc = 1;
 static ms_engine g_ms;                       /* a few KB of state */
 static volatile float g_fader[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 static volatile float g_param2[4] = { 0.5f, 0.5f, 0.5f, 0.5f };
-static volatile int g_page;                  /* 0: the stages, 1: their second parameters */
+static volatile float g_crush[4] = { 0.0f, 0.5f, 0.5f, 0.5f };   /* amount, bits, rate, filter */
+static volatile int g_page;                  /* 0: the stages, 1: their second parameters, 2: crush */
 static volatile bool g_bypass;
 static volatile int g_chain;                 /* the TRACK buttons pick it: 0..3 */
 static volatile int g_vol_db = -6;           /* output volume, 3 dB steps, -60..0 */
@@ -633,6 +637,7 @@ static void audio_block(int32_t *out)
 	for (int k = 0; k < 4; k++) {
 		ms_set_fader(&g_ms, k, g_fader[k]);
 		ms_set_param2(&g_ms, k, g_param2[k]);
+		ms_set_crush(&g_ms, k, g_crush[k]);
 	}
 	ms_set_chain(&g_ms, g_chain);
 	ms_set_bypass(&g_ms, g_bypass);
@@ -786,9 +791,11 @@ static void status_line(void)
 	if (!cdc_open()) return;
 	uint32_t fill = ring_buf_size_get(&usb_ring) / USB_FRAME_BYTES;
 	float gr = ms_gain_reduction_db(&g_ms);
-	printk("SP-1M chain=%d f=%d,%d,%d,%d byp=%d vol=%d usb=%d fill=%u under=%u over=%u nobuf=%u pad=%u "
+	printk("SP-1M chain=%d page=%d f=%d,%d,%d,%d cr=%d,%d,%d,%d byp=%d vol=%d usb=%d fill=%u under=%u over=%u nobuf=%u pad=%u "
 	       "blk=%u/%uus over=%u i2s=%d/%u hp=%d/%d tas=%d gr=%d.%ddB bat=%d rr=%08x flt=%08x@%08x\n",
-	       g_chain + 1, g_adc[2], g_adc[3], g_adc[4], g_adc[5], g_bypass, g_vol_db, g_usb_streaming, fill,
+	       g_chain + 1, g_page + 1, g_adc[2], g_adc[3], g_adc[4], g_adc[5],
+	       (int)(g_crush[0] * 100.0f), (int)(g_crush[1] * 100.0f), (int)(g_crush[2] * 100.0f),
+	       (int)(g_crush[3] * 100.0f), g_bypass, g_vol_db, g_usb_streaming, fill,
 	       g_ring_under, g_ring_over, g_rx_nobuf, g_zero_pad, g_blk_us_last, g_blk_us_max,
 	       g_blk_over, g_i2s_rc, g_i2s_fail, g_hp_on, g_hp_in, g_tas_ok,
 	       (int)gr, (int)(gr * 10.0f) % 10,
@@ -916,7 +923,7 @@ int main(void)
 				float q = fpos[k] > 0.996f ? 1.0f : fpos[k] < 0.004f ? 0.0f : fpos[k];
 				float dq = q - fheld[k];
 				if (first || dq > 0.003f || dq < -0.003f || q == 0.0f || q == 1.0f) fheld[k] = q;
-				volatile float *dst = g_page == 0 ? &g_fader[k] : &g_param2[k];
+				volatile float *dst = g_page == 0 ? &g_fader[k] : g_page == 1 ? &g_param2[k] : &g_crush[k];
 				if (!caught[k]) {
 					float d = fheld[k] - *dst;
 					int sd = d < 0.0f ? -1 : 1;
@@ -968,7 +975,8 @@ int main(void)
 				if (vol == VOL_UP && g_vol_db < 0) g_vol_db += 3;
 				if (vol == VOL_DOWN && g_vol_db > -60) g_vol_db -= 3;
 				if (vol == VOL_UP || vol == VOL_DOWN) vol_show_until = now + 1000;
-				int np = vol == VOL_FWD ? 1 : vol == VOL_RWD ? 0 : g_page;
+				/* FWD: the crush page, and back; RWD: page 2, and back */
+				int np = vol == VOL_FWD ? (g_page == 2 ? 0 : 2) : vol == VOL_RWD ? (g_page == 1 ? 0 : 1) : g_page;
 				if (vol == VOL_FWD || vol == VOL_RWD) page_show_until = now + 600;
 				if (np != g_page) {
 					g_page = np;
@@ -1015,10 +1023,9 @@ int main(void)
 			int b = (int)((tick % 100u) < 50u ? (tick % 50u) : 50u - (tick % 50u)) * 3;
 			for (int i = 0; i < 4; i++) led_set(g_sta_duty, i, b);
 		} else if (now < page_show_until) {
-			/* the page: left pair = page 1, right pair = page 2 */
-			int p2 = g_page == 1;
-			led_set(g_sta_duty, 0, p2 ? 0 : LED_DIM); led_set(g_sta_duty, 1, p2 ? 0 : LED_DIM);
-			led_set(g_sta_duty, 2, p2 ? LED_DIM : 0); led_set(g_sta_duty, 3, p2 ? LED_DIM : 0);
+			/* the page: left pair = page 1, right pair = page 2, all four = crush */
+			for (int i = 0; i < 4; i++)
+				led_set(g_sta_duty, i, g_page == 2 || (g_page == 1) == (i >= 2) ? LED_DIM : 0);
 		} else if (now < vol_show_until) {
 			int lv = (g_vol_db + 60) * 4 / 60;   /* 0..4 */
 			for (int i = 0; i < 4; i++) led_set(g_sta_duty, i, i < lv ? LED_DIM : 0);
@@ -1029,6 +1036,7 @@ int main(void)
 			for (int i = 0; i < 4; i++) {
 				int on = gr >= thr[i] ? LED_DIM : 0;
 				if (g_page == 1 && i == 3 && on == 0) on = (tick % 40u < 20u) ? 40 : 0;
+				if (g_page == 2 && i == 0 && on == 0) on = (tick % 40u < 20u) ? 40 : 0;
 				led_set(g_sta_duty, i, on);
 			}
 			ms_meter_fall(&g_ms, 0.85f);   /* the meter falls back between readings */
