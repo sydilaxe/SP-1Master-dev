@@ -57,7 +57,7 @@ chain**, so the chain masters the crushed sound, and it stays set when you switc
 | 1 | **Amount** | off | all crushed (a mix in between) |
 | 2 | **Bits** | 16 bits | 1 bit (2^N levels, so 1 bit is a square at the music's level) |
 | 3 | **Rate** | 48 kHz | 2 kHz, sample-and-hold |
-| 4 | **Filter** | high-pass, up to 6 kHz | low-pass, down to 60 Hz (the middle fifth flat; 24 dB/oct, resonant) |
+| 4 | **Filter** | low-pass, down to 60 Hz | high-pass, up to 6 kHz (the middle fifth flat; 24 dB/oct, resonant; as on SP-1FX) |
 
 The filter works whatever Amount is, after the crusher. At power on Amount is down and Filter is
 centred, so the page does nothing until used. Bypass skips it.

@@ -21,7 +21,7 @@
  *   crush 2  BITS     16 bits (down) to 1 bit (up), relative to the signal's level: 2^bits levels,
  *                     so 1 bit is a square at the music's level.
  *   crush 3  RATE     the sample rate: 48 kHz (down) to 2 kHz (up), sample-and-hold, no smoothing.
- *   crush 4  FILTER   high-pass (down), flat (the middle fifth), low-pass (up); 24 dB/oct, the
+ *   crush 4  FILTER   low-pass (down), flat (the middle fifth), high-pass (up); 24 dB/oct, the
  *                     SP-1FX filter. It works on its own, whatever AMOUNT is.
  *
  * After the chain, a look-ahead limiter (-1 dBFS ceiling, 1 ms look-ahead) is always on. With

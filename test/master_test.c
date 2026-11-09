@@ -504,18 +504,18 @@ int main(int argc, char **argv)
         double im = band_db(l, W, N, 1500, 20000) - rms_db(l, W, N);
         check(im > -20, "crush: rate 2 kHz, images over 1.5 kHz (dB re all)", im);
 
-        /* FILTER down: high-pass at 6 kHz; up: low-pass at 60 Hz */
-        g_crush = (const float[4]){ 0, 0.5f, 0.5f, 0 };
+        /* FILTER up: high-pass at 6 kHz; down: low-pass at 60 Hz (as on SP-1FX) */
+        g_crush = (const float[4]){ 0, 0.5f, 0.5f, 1 };
         run(nl, nr, l, r, N, MS_LONDON, REST, NULL, 256);
         double lo = band_db(l, W, N, 80, 200) - band_db(nl, W, N, 80, 200);
         double hi = band_db(l, W, N, 10000, 16000) - band_db(nl, W, N, 10000, 16000);
-        check(lo < -40 && fabs(hi) < 3, "crush: filter down, 80-200 Hz taken out (dB)", lo);
-        g_crush = (const float[4]){ 0, 0.5f, 0.5f, 1 };
+        check(lo < -40 && fabs(hi) < 3, "crush: filter up, 80-200 Hz taken out (dB)", lo);
+        g_crush = (const float[4]){ 0, 0.5f, 0.5f, 0 };
         run(nl, nr, l, r, N, MS_LONDON, REST, NULL, 256);
         lo = band_db(l, W, N, 25, 45) - band_db(nl, W, N, 25, 45);
         hi = band_db(l, W, N, 2000, 5000) - band_db(nl, W, N, 2000, 5000);
         check(hi < -40 && lo > -3,   /* the lows stay; the resonance may lift them */
-               "crush: filter up, 2-5 kHz taken out (dB)", hi);
+               "crush: filter down, 2-5 kHz taken out (dB)", hi);
         g_crush = (const float[4]){ 0, 0.5f, 0.5f, 0.56f };
         run(il, ir, l, r, N, MS_LONDON, REST, NULL, 256);
         exact = 1;
