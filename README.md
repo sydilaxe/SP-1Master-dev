@@ -7,6 +7,8 @@ headphones or the speaker.
 
 **Firmware:** `sp1master.bin` on each [release](../../releases) (CI builds it on every push)
 
+**Latest release:** [v0.3.0](../../releases/tag/v0.3.0) · [all releases](../../releases)
+
 **Manual:** `SP-1-Master-manual.pdf` on each [release](../../releases) (source: [`docs/manual/manual.md`](docs/manual/manual.md))
 
 > **Not yet run on a real SP-1.** The engine passes its tests, and the platform code is
@@ -161,3 +163,14 @@ make bench       # the Cortex-M4 cycle estimate (pip install unicorn capstone)
 
 Not made or endorsed by Teenage Engineering, or by any studio or equipment maker whose style a
 chain follows.
+
+## Releasing
+
+Push a tag such as `v0.4.0`, run **Actions → build → Run workflow** with `release_tag` filled in, or
+create a release on GitHub's Releases page. Any of these builds the firmware and the manual, runs the
+tests, and publishes a full release marked **Latest** with `sp1master.bin` and `SP-1-Master-manual.pdf` attached and
+`.github/release-notes.md` as its notes. A tag typed as `V0.4.0` or `0.4.0` is published as `v0.4.0`;
+running again for the same tag replaces the files.
+
+Before tagging, set the new version in `VERSION` and in the README's **Latest release** line (CI checks the
+two match), and put what is new at the top of `.github/release-notes.md`.
